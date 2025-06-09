@@ -17,9 +17,9 @@ API_BASE_URL = "http://localhost:8000"
 with st.sidebar:
     st.title("📈 AI Stock Analyzer")
     st.markdown("""
-    **Analyze any stock with AI-powered technical and sentiment analysis.**
+    **Analyze any US stock with AI-powered technical and sentiment analysis.**
     
-    - Enter a stock symbol (e.g., AAPL, TSLA, MSFT)
+    - Type a company name or symbol (e.g., Apple, AAPL, Tesla, TSLA)
     - Click **Analyze**
     - View consensus, agent signals, and charts
     """)
@@ -42,11 +42,39 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.header("🔍 Stock Analysis Dashboard")
-symbol = st.text_input("Stock Symbol", value="AAPL", max_chars=10, help="Enter a valid stock ticker symbol (e.g., AAPL, TSLA, MSFT)")
+company_input = st.text_input(
+    "Company Name or Symbol",
+    value="",
+    max_chars=40,
+    help="Type a US company name or symbol (e.g., Apple, AAPL, Tesla, TSLA)"
+)
 
 analyze_btn = st.button("🚀 Analyze", use_container_width=True)
 
+symbol = None
+
 if analyze_btn:
+    # Search for the company name or symbol using the backend
+    try:
+        print("company_input", company_input)
+        resp = requests.get(f"{API_BASE_URL}/search", params={"q": company_input})
+        print("resp", resp.json())
+        if resp.status_code == 200:
+            results = resp.json()
+            print("results", results)
+            # Use the first result if available
+            if results:
+                symbol = results[0]["symbol"]
+            else:
+                symbol = company_input
+                st.warning("No US stock found for your input. Please try a different company or symbol.")
+        else:
+            st.error(f"Search API error: {resp.status_code} - {resp.text}")
+    except Exception as e:
+        st.error(f"Search error: {e}")
+    
+    print("symbol", symbol)
+
     if symbol:
         with st.spinner(f"Analyzing {symbol.upper()}..."):
             response = requests.post(f"{API_BASE_URL}/analyze", json={"symbol": symbol})
@@ -55,7 +83,7 @@ if analyze_btn:
                 if "error" in data:
                     st.error(data["error"])
                 else:
-                    st.success(f"Analysis complete for {symbol.upper()}!", icon="✅")
+                    st.success(f"Analysis complete for {symbol.upper()}! ✅")
                     # Layout: Metrics and Consensus
                     col1, col2, col3 = st.columns([2,2,3])
                     with col1:
@@ -104,6 +132,4 @@ if analyze_btn:
                                 st.write("**Reasoning:**")
                                 st.write(sig.get('reasoning', 'No reasoning provided'))
             else:
-                st.error(f"API Error: {response.status_code}")
-    else:
-        st.warning("Please enter a stock symbol.") 
+                st.error(f"API Error: {response.status_code}") 

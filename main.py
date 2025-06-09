@@ -20,6 +20,14 @@ import os
 from multiprocessing import Process
 import uvicorn
 
+def kill_ports():
+    # Only works on Unix/macOS
+    for port in [8000, 8501]:
+        try:
+            subprocess.run(f"lsof -ti:{port} | xargs kill -9", shell=True, check=False)
+        except Exception:
+            pass
+
 def run_api_server():
     """Run the FastAPI server"""
     print("🚀 Starting FastAPI server...")
@@ -66,6 +74,8 @@ TWELVE_DATA_API_KEY=your_twelve_data_api_key_here
         print("✅ Created .env file. Please update with your API keys.")
 
 def main():
+    kill_ports()
+    print("🤖 AI Stock Trading Platform - Quick Start")
     parser = argparse.ArgumentParser(description="AI Stock Trading Platform")
     parser.add_argument(
         "--mode", 
