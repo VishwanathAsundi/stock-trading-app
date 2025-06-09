@@ -52,16 +52,14 @@ class BaseAgent(ABC):
         }
     
     async def _get_ai_analysis(self, prompt: str) -> str:
-        """Get AI analysis using Gemini (Google AI, requires API key)"""
+        """Get AI analysis using Gemini and Groq, validated by Gemini."""
         try:
-            if hasattr(config, 'GEMINI_API_KEY') and config.GEMINI_API_KEY and config.GEMINI_API_KEY != 'your_gemini_api_key_here':
-                import google.generativeai as genai
-                genai.configure(api_key=config.GEMINI_API_KEY)
-                model = genai.GenerativeModel('gemini-pro')
-                response = model.generate_content(prompt)
-                return response.text.strip()
-            else:
-                return "AI analysis not available (GEMINI_API_KEY not configured)"
+            from llm_service import multi_llm_analysis, validate_with_gemini
+            llm_results = multi_llm_analysis(prompt)
+            validation = validate_with_gemini(llm_results, prompt)
+            print("validation", validation)
+            return f"Gemini Validation:\n{validation}\n\nRaw LLM Responses:\n" + \
+                   "\n".join([f"{k}: {v}" for k, v in llm_results.items()])
         except Exception as e:
             return f"AI analysis error: {str(e)}"
     
