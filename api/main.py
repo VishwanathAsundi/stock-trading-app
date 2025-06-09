@@ -38,26 +38,31 @@ def root():
 @app.post("/analyze")
 async def analyze_symbol(request: AnalysisRequest):
     symbol = request.symbol.upper()
+    print("analyze symbol", symbol)
+    exchange = None
     # Try to resolve symbol if not a known ticker (e.g., if user entered "APPLE")
     if not (2 <= len(symbol) <= 5 and symbol.isalpha()):  # crude check, can be improved
-        url = f"https://api.twelvedata.com/symbol_search?symbol={symbol}&apikey={TWELVE_DATA_API_KEY}"
+        url = f"https://api.twelvedata.com/symbol_search?symbol={symbol.upper()}&apikey={TWELVE_DATA_API_KEY}"
         print("analyze url", url)
         try:
             r = requests.get(url, timeout=5)
             # r.raise_for_status()
             data = r.json()
+            print("analyze data", data)
             for item in data.get('data', []):
-                if item.get('country') == 'United States' and item.get('exchange') in ['NYSE', 'NASDAQ']:
+                if item.get('exchange') in ['NYSE', 'NASDAQ', 'NSE', 'BSE']:
                     symbol = item['symbol']
+                    exchange = item['exchange']
                     break
         except Exception as e:
-            print("twelvedata error", e)
+            print("twelvedata error", e, end="\n\n")
             raise HTTPException(status_code=500, detail=str(e))
-            
+    
     try:
-        result = await stock_analyzer.analyze(symbol)
+        result = await stock_analyzer.analyze(symbol, exchange)
         return result
     except Exception as e:
+        print("analyze error", e, end="\n\n")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/search")
@@ -71,11 +76,11 @@ def search_companies(q: str = Query(..., min_length=1)):
         data = r.json()
         results = []
         for item in data.get('data', []):
-            # Only show US stocks (NYSE/NASDAQ)
-            if item.get('country') == 'United States' and item.get('exchange') in ['NYSE', 'NASDAQ']:
+            # Support US and Indian stocks (NYSE, NASDAQ, NSE, BSE)
+            if item.get('exchange') in ['NYSE', 'NASDAQ', 'NSE', 'BSE']:
                 results.append({
                     "symbol": item['symbol'],
-                    "shortname": item['instrument_name'],
+                    "shortname": item.get('instrument_name', item.get('name', '')),
                     "exchange": item['exchange'],
                     "type": item.get('instrument_type', '')
                 })

@@ -17,9 +17,9 @@ API_BASE_URL = "http://localhost:8000"
 with st.sidebar:
     st.title("📈 AI Stock Analyzer")
     st.markdown("""
-    **Analyze any US stock with AI-powered technical and sentiment analysis.**
+    **Analyze any US or Indian stock with AI-powered technical and sentiment analysis.**
     
-    - Type a company name or symbol (e.g., Apple, AAPL, Tesla, TSLA)
+    - Type a company name or symbol (e.g., Apple, AAPL, Reliance, RELIANCE.NSE, Tata, TCS.NSE)
     - Click **Analyze**
     - View consensus, agent signals, and charts
     """)
@@ -46,7 +46,7 @@ company_input = st.text_input(
     "Company Name or Symbol",
     value="",
     max_chars=40,
-    help="Type a US company name or symbol (e.g., Apple, AAPL, Tesla, TSLA)"
+    help="Type a US or Indian company name or symbol (e.g., Apple, AAPL, Reliance, RELIANCE.NSE, Tata, TCS.NSE)"
 )
 
 analyze_btn = st.button("🚀 Analyze", use_container_width=True)
@@ -76,7 +76,9 @@ if analyze_btn:
     print("symbol", symbol)
 
     if symbol:
+        print("symbol inside if", symbol)
         with st.spinner(f"Analyzing {symbol.upper()}..."):
+            print("symbol inside if-2", symbol)
             response = requests.post(f"{API_BASE_URL}/analyze", json={"symbol": symbol})
             if response.status_code == 200:
                 data = response.json()
@@ -84,10 +86,11 @@ if analyze_btn:
                     st.error(data["error"])
                 else:
                     st.success(f"Analysis complete for {symbol.upper()}! ✅")
+                    currency = data.get('currency', '$')
                     # Layout: Metrics and Consensus
                     col1, col2, col3 = st.columns([2,2,3])
                     with col1:
-                        st.metric("Current Price", f"${data['current_price']:.2f}")
+                        st.metric("Current Price", f"{currency}{data['current_price']:.2f}")
                     with col2:
                         consensus = data.get("consensus", {})
                         action = consensus.get('action', 'N/A').upper()
@@ -126,9 +129,9 @@ if analyze_btn:
                                 st.write(f"**Action:** :dart: `{sig['action'].upper()}`")
                                 st.write(f"**Confidence:** `{sig['confidence']:.2f}`")
                                 if sig.get('target_price'):
-                                    st.write(f"**Target Price:** :moneybag: `${sig['target_price']:.2f}`")
+                                    st.write(f"**Target Price:** :moneybag: `{currency}{sig['target_price']:.2f}`")
                                 if sig.get('stop_loss'):
-                                    st.write(f"**Stop Loss:** :no_entry: `${sig['stop_loss']:.2f}`")
+                                    st.write(f"**Stop Loss:** :no_entry: `{currency}{sig['stop_loss']:.2f}`")
                                 st.write("**Reasoning:**")
                                 st.write(sig.get('reasoning', 'No reasoning provided'))
             else:

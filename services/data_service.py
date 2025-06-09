@@ -146,5 +146,12 @@ class DataService:
             'headlines': []
         }
 
+def map_symbol_for_yfinance(symbol, exchange):
+    if exchange == 'NSE' and not symbol.endswith('.NS'):
+        return symbol + '.NS'
+    if exchange == 'BSE' and not symbol.endswith('.BO'):
+        return symbol + '.BO'
+    return symbol
+
 # Global instance
 data_service = DataService() 

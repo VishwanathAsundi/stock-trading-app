@@ -3,7 +3,7 @@ from typing import Dict
 from agents.technical_agent import TechnicalAgent
 from agents.sentiment_agent import SentimentAgent
 from agents.base_agent import TradingSignal
-from services.data_service import data_service
+from services.data_service import data_service, map_symbol_for_yfinance
 from config import config
 
 class StockAnalyzer:
@@ -13,18 +13,24 @@ class StockAnalyzer:
             'sentiment': SentimentAgent(),
         }
 
-    async def analyze(self, symbol: str) -> Dict:
+    async def analyze(self, symbol: str, exchange: str = None) -> Dict:
         """Analyze a single symbol and return signals and consensus"""
+        # Map symbol for yfinance if exchange is provided
+        yf_symbol = symbol
+        if exchange:
+            yf_symbol = map_symbol_for_yfinance(symbol, exchange)
+        # Determine currency
+        currency = '₹' if exchange in ['NSE', 'BSE'] else '$'
         # Get market data
-        data = await data_service.get_stock_data(symbol, period="5d", interval="1h")
-        market_data = await data_service.get_real_time_price(symbol)
+        data = await data_service.get_stock_data(yf_symbol, period="5d", interval="1h")
+        market_data = await data_service.get_real_time_price(yf_symbol)
         if data.empty or not market_data:
             return {"error": f"No data available for {symbol}"}
         # Get signals from all agents
         signals = {}
         for agent_name, agent in self.agents.items():
             try:
-                signal = await agent.analyze(symbol, data, market_data)
+                signal = await agent.analyze(yf_symbol, data, market_data)
                 signals[agent_name] = {
                     'action': signal.action,
                     'confidence': signal.confidence,
@@ -41,7 +47,7 @@ class StockAnalyzer:
             signal_objects = {}
             for name, sig_data in valid_signals.items():
                 signal_objects[name] = TradingSignal(
-                    symbol=symbol,
+                    symbol=yf_symbol,
                     action=sig_data['action'],
                     confidence=sig_data['confidence'],
                     reasoning=sig_data['reasoning'],
@@ -52,8 +58,9 @@ class StockAnalyzer:
         else:
             consensus = {'action': 'hold', 'confidence': 0.0, 'agreement': 0.0}
         return {
-            'symbol': symbol,
+            'symbol': yf_symbol,
             'current_price': market_data.get('price', 0),
+            'currency': currency,
             'signals': signals,
             'consensus': consensus
         }
