@@ -52,24 +52,16 @@ class BaseAgent(ABC):
         }
     
     async def _get_ai_analysis(self, prompt: str) -> str:
-        """Get AI analysis using OpenAI (optional, requires API key)"""
+        """Get AI analysis using Gemini (Google AI, requires API key)"""
         try:
-            if hasattr(config, 'OPENAI_API_KEY') and config.OPENAI_API_KEY and config.OPENAI_API_KEY != 'your_openai_api_key_here':
-                from openai import OpenAI
-                client = OpenAI(api_key=config.OPENAI_API_KEY)
-                
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a financial analyst. Provide concise, factual analysis."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    max_tokens=150,
-                    temperature=0.7
-                )
-                return response.choices[0].message.content.strip()
+            if hasattr(config, 'GEMINI_API_KEY') and config.GEMINI_API_KEY and config.GEMINI_API_KEY != 'your_gemini_api_key_here':
+                import google.generativeai as genai
+                genai.configure(api_key=config.GEMINI_API_KEY)
+                model = genai.GenerativeModel('gemini-pro')
+                response = model.generate_content(prompt)
+                return response.text.strip()
             else:
-                return "AI analysis not available (API key not configured)"
+                return "AI analysis not available (GEMINI_API_KEY not configured)"
         except Exception as e:
             return f"AI analysis error: {str(e)}"
     

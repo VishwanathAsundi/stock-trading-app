@@ -57,7 +57,7 @@ def setup_environment():
         print("📝 Creating .env file...")
         with open('.env', 'w') as f:
             f.write("""# AI Trading Platform Configuration
-OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
 REDIS_URL=redis://localhost:6379
 DATABASE_URL=sqlite:///./trading_app.db
