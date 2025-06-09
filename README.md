@@ -76,13 +76,13 @@ A comprehensive, AI-powered stock trading platform that leverages multiple intel
    ```bash
    python3 main.py --mode setup
    ```
-   This will create a `.env` file and initialize the database.
+   This will create a `.env` file and initialize the configuration.
 
 4. **Configure API keys** (Optional but recommended)
    Edit the `.env` file and add your API keys:
    ```env
-   OPENAI_API_KEY=your_openai_api_key_here
-   ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
+   GEMINI_API_KEY=your_gemini_api_key_here
+   TWELVE_DATA_API_KEY=your_twelve_data_api_key_here
    ```
 
 5. **Run the application**

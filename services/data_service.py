@@ -54,7 +54,8 @@ class DataService:
         df['BB_lower'] = bollinger.bollinger_lband()
         
         # Volume indicators
-        df['Volume_SMA'] = ta.volume.volume_sma(df['Close'], df['Volume'], window=20)
+        if 'Volume' in df.columns:
+            df['Volume_SMA'] = df['Volume'].rolling(window=20).mean()
         
         # Stochastic Oscillator
         df['Stoch_K'] = ta.momentum.stoch(df['High'], df['Low'], df['Close'])

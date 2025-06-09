@@ -27,18 +27,21 @@ def run_api_server():
     uvicorn.run(app, host="0.0.0.0", port=8000, reload=False)
 
 def run_trading_engine():
-    """Run the trading engine"""
-    print("🤖 Starting AI Trading Engine...")
+    """Run the trading engine (analyzer)"""
+    print("🤖 Starting AI Stock Analyzer...")
+    from trading_engine import stock_analyzer
     import asyncio
-    from trading_engine import trading_engine
-    
-    async def start_engine():
-        await trading_engine.start_trading()
-    
+    async def analyze_loop():
+        while True:
+            symbol = input("Enter stock symbol to analyze (or 'exit' to quit): ").strip().upper()
+            if symbol == 'EXIT':
+                break
+            result = await stock_analyzer.analyze(symbol)
+            print(result)
     try:
-        asyncio.run(start_engine())
+        asyncio.run(analyze_loop())
     except KeyboardInterrupt:
-        print("\n🛑 Trading engine stopped by user")
+        print("\n🛑 Analyzer stopped by user")
 
 def run_streamlit_frontend():
     """Run the Streamlit frontend"""
@@ -56,23 +59,11 @@ def setup_environment():
     if not os.path.exists('.env'):
         print("📝 Creating .env file...")
         with open('.env', 'w') as f:
-            f.write("""# AI Trading Platform Configuration
+            f.write("""# AI Stock Analyzer Configuration
 GEMINI_API_KEY=your_gemini_api_key_here
-ALPHA_VANTAGE_API_KEY=your_alpha_vantage_api_key_here
-REDIS_URL=redis://localhost:6379
-DATABASE_URL=sqlite:///./trading_app.db
-SECRET_KEY=your_secret_key_here
-RISK_TOLERANCE=medium
-MAX_POSITION_SIZE=0.1
-TRADING_MODE=paper
+TWELVE_DATA_API_KEY=your_twelve_data_api_key_here
 """)
         print("✅ Created .env file. Please update with your API keys.")
-    
-    # Initialize database
-    print("🗄️ Initializing database...")
-    from models.database import create_tables
-    create_tables()
-    print("✅ Database initialized")
 
 def main():
     parser = argparse.ArgumentParser(description="AI Stock Trading Platform")
@@ -82,7 +73,6 @@ def main():
         default="setup",
         help="Mode to run the application"
     )
-    
     args = parser.parse_args()
     
     if args.mode == "setup":
@@ -105,17 +95,12 @@ def main():
     
     elif args.mode == "all":
         print("🚀 Starting all components...")
-        
-        # Start API server in a separate process
+        setup_environment()
         api_process = Process(target=run_api_server)
         api_process.start()
-        
-        # Start Streamlit frontend in a separate process
         frontend_process = Process(target=run_streamlit_frontend)
         frontend_process.start()
-        
         try:
-            # Run trading engine in main process
             run_trading_engine()
         except KeyboardInterrupt:
             print("\n🛑 Shutting down all components...")
