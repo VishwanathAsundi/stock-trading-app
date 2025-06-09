@@ -69,12 +69,12 @@ A comprehensive, AI-powered stock trading platform that leverages multiple intel
 
 2. **Install dependencies**
    ```bash
-   pip install -r requirements.txt
+   pip3 install -r requirements.txt
    ```
 
 3. **Setup the application**
    ```bash
-   python main.py --mode setup
+   python3 main.py --mode setup
    ```
    This will create a `.env` file and initialize the database.
 
@@ -88,12 +88,15 @@ A comprehensive, AI-powered stock trading platform that leverages multiple intel
 5. **Run the application**
    ```bash
    # Run everything (recommended for first-time users)
-   python main.py --mode all
+   python3 main.py --mode all
    
    # Or run components separately:
-   python main.py --mode api       # API server only
-   python main.py --mode frontend  # Web interface only
-   python main.py --mode trading   # Trading engine only
+   python3 main.py --mode api       # API server only
+   python3 main.py --mode frontend  # Web interface only
+   python3 main.py --mode trading   # Trading engine only
+   
+   # Quick start script (interactive)
+   python3 start.py
    ```
 
 6. **Access the web interface**
@@ -127,15 +130,15 @@ API documentation is available at `http://localhost:8000/docs`
 
 ```bash
 # Setup and initialization
-python main.py --mode setup
+python3 main.py --mode setup
 
 # Run individual components
-python main.py --mode api          # FastAPI server
-python main.py --mode frontend     # Streamlit UI
-python main.py --mode trading      # AI trading engine
+python3 main.py --mode api          # FastAPI server
+python3 main.py --mode frontend     # Streamlit UI
+python3 main.py --mode trading      # AI trading engine
 
 # Run everything together
-python main.py --mode all
+python3 main.py --mode all
 ```
 
 ## ⚙️ Configuration
