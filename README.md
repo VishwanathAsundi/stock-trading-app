@@ -36,3 +36,28 @@ A comprehensive, AI-powered stock trading platform that leverages multiple intel
 - Easy agent extension framework
 
 ## 🏗️ Architecture
+
+### 🔄 Core Components
+- **Trading Engine**: Central coordinator managing agent interactions and trade execution
+- **Data Service**: Real-time and historical market data provider
+- **Portfolio Service**: Portfolio state management and trade tracking
+- **Agent Framework**: Modular system for intelligent trading agents
+
+### 🤖 Agent System
+- **Base Agent**: Abstract agent class with common functionality
+- **Technical Agent**: Technical analysis and indicator-based signals
+- **Sentiment Agent**: News and social sentiment analysis
+- **Risk Agent**: Portfolio risk assessment and management
+
+### 🔌 External Integrations
+- **Market Data**: Yahoo Finance API integration
+- **News & Social**: News API and social media sentiment sources
+- **Trading**: Paper trading and live broker connectivity
+- **Storage**: SQLite database for persistence
+
+### 📡 Communication Flow
+1. Data Service fetches market updates
+2. Agents analyze data independently
+3. Trading Engine aggregates agent signals
+4. Portfolio Service executes consensus decisions
+5. Dashboard updates with latest state
