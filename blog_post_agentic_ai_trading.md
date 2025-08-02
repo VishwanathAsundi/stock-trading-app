@@ -322,6 +322,37 @@ flowchart TD
 ```
 *Figure 4: Multi-LLM validation system for robust and reliable agent analysis.*
 
+### ChatGPT Model: Expanding the LLM Ensemble
+
+With the latest update, I integrated **OpenAI's ChatGPT (gpt-3.5-turbo)** as an additional model in the multi-LLM analysis pipeline. Now, when an agent requests AI analysis, the system queries Gemini, Groq, and ChatGPT in parallel, then synthesizes their responses for validation and consensus.
+
+**How ChatGPT is Used:**
+- The `multi_llm_analysis` function now includes a call to ChatGPT, provided an OpenAI API key is configured.
+- Each agent's `_get_ai_analysis` method collects responses from all available LLMs, including ChatGPT, and presents them alongside Gemini and Groq outputs.
+- The Gemini model still acts as the primary validator, but ChatGPT's perspective is included in both the raw output and the validation process.
+
+**Benefits of Adding ChatGPT:**
+- **Diversity of Reasoning:** ChatGPT often provides unique reasoning paths and explanations, which can highlight alternative interpretations of technical or sentiment signals.
+- **Improved Robustness:** By comparing ChatGPT's output with other LLMs, the system can better detect outliers, edge cases, or potential blind spots in analysis.
+- **Enhanced Consensus:** Including ChatGPT in the ensemble increases the reliability of consensus decisions, especially in ambiguous or volatile market conditions.
+
+**Example Output:**
+
+```
+Gemini Validation (Google):
+[Validation summary]
+
+Raw LLM Responses (Gemini, Groq, ChatGPT):
+gemini: [Gemini's analysis]
+groq: [Groq's analysis]
+chatgpt: [ChatGPT's analysis]
+
+ChatGPT (OpenAI) Response:
+[ChatGPT's detailed reasoning]
+```
+
+This multi-LLM approach, now with ChatGPT, ensures that agentic analysis is not only more comprehensive but also more transparent and explainable for end users.
+
 ## Real-World Implementation: From Code to Trading
 
 ### The User Experience

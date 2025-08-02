@@ -6,7 +6,7 @@ import numpy as np
 class TechnicalAgent(BaseAgent):
     def __init__(self):
         super().__init__("Technical Analysis Agent")
-        self.min_data_points = 50
+        self.min_data_points = 20
     
     async def analyze(self, symbol: str, data: pd.DataFrame, market_data: Dict) -> TradingSignal:
         """Analyze technical indicators and generate trading signal"""

@@ -52,14 +52,19 @@ class BaseAgent(ABC):
         }
     
     async def _get_ai_analysis(self, prompt: str) -> str:
-        """Get AI analysis using Gemini and Groq, validated by Gemini."""
+        """Get AI analysis using Gemini, Groq, and ChatGPT, validated by Gemini."""
         try:
             from llm_service import multi_llm_analysis, validate_with_gemini
             llm_results = multi_llm_analysis(prompt)
             validation = validate_with_gemini(llm_results, prompt)
-            print("validation", validation)
-            return f"Gemini Validation:\n{validation}\n\nRaw LLM Responses:\n" + \
-                   "\n".join([f"{k}: {v}" for k, v in llm_results.items()])
+            chatgpt_response = llm_results.get("chatgpt")
+            chatgpt_note = f"\n\nChatGPT (OpenAI) Response:\n{chatgpt_response}" if chatgpt_response else ""
+            return (
+                f"Gemini Validation (Google):\n{validation}\n"
+                f"\nRaw LLM Responses (Gemini, Groq, ChatGPT):\n"
+                + "\n".join([f"{k}: {v}" for k, v in llm_results.items()])
+                + chatgpt_note
+            )
         except Exception as e:
             return f"AI analysis error: {str(e)}"
     
