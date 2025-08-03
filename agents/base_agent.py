@@ -55,8 +55,20 @@ class BaseAgent(ABC):
         """Get AI analysis using Gemini, Groq, and ChatGPT, validated by Gemini."""
         try:
             from llm_service import multi_llm_analysis, validate_with_gemini
-            llm_results = multi_llm_analysis(prompt)
-            validation = validate_with_gemini(llm_results, prompt)
+            llm_results = await multi_llm_analysis(prompt)
+            # validate_with_gemini is still sync, but we want it async
+            # So let's call Gemini validation using ask_gemini async
+            from llm_service import ask_gemini
+            validation_prompt = (
+                f"Given the following stock analysis responses from different AI models for the prompt:\n"
+                f'"{prompt}"\n\n'
+                f"Responses:\n"
+                + "\n".join([f"{k}: {v}" for k, v in llm_results.items()])
+                + "\n\n"
+                "Please validate each response for accuracy and reasonableness. "
+                "Summarize the best action and highlight any disagreements or errors."
+            )
+            validation = await ask_gemini(validation_prompt)
             chatgpt_response = llm_results.get("chatgpt")
             chatgpt_note = f"\n\nChatGPT (OpenAI) Response:\n{chatgpt_response}" if chatgpt_response else ""
             return (

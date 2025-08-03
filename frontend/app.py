@@ -3,6 +3,9 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 st.set_page_config(
     page_title="AI Stock Analyzer",
@@ -205,306 +208,452 @@ body {
 
 API_BASE_URL = "http://localhost:8000"
 
-# Sidebar
+# --- PAGE NAVIGATION ---
+PAGES = {
+    "Stock Analysis Dashboard": "dashboard",
+    "Multi-Stock Signals": "multi_stock_signals"
+}
+
 with st.sidebar:
-    st.image("https://img.icons8.com/color/96/000000/line-chart.png", width=80)
-    st.title("📈 AI Stock Analyzer")
-    st.markdown("""
-    <div style="font-size:1.1rem;line-height:1.5;font-family:'Segoe UI','Roboto','Helvetica Neue',Arial,'Liberation Sans',sans-serif;">
-    <b>Analyze any US or Indian stock with AI-powered technical and sentiment analysis.</b>
-    <ul style="margin-top:0.5em;">
-      <li>Type a company name or symbol (e.g., <b>Apple, AAPL, Reliance, RELIANCE.NSE, Tata, TCS.NSE</b>)</li>
-      <li>Click <b>Analyze</b></li>
-      <li>View <span style="color:#2E8B57;font-weight:bold;">consensus</span>, <span style="color:#0072C6;font-weight:bold;">agent signals</span>, and <span style="color:#ff9800;font-weight:bold;">charts</span></li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("---")
-    st.info("Made with ❤️ using Streamlit and Gemini AI")
+    page = st.radio("Navigation", list(PAGES.keys()),
+                   index=0, key="page_nav")
 
-st.markdown("<h1 style='text-align:center; color:#0072C6; font-size:2.3rem; font-family:Montserrat,Segoe UI,Roboto,sans-serif;'>🔍 Stock Analysis Dashboard</h1>", unsafe_allow_html=True)
-company_input = st.text_input(
-    "Company Name or Symbol",
-    value="",
-    max_chars=40,
-    help="Type a US or Indian company name or symbol (e.g., Apple, AAPL, Reliance, RELIANCE.NSE, Tata, TCS.NSE)"
-)
+# --- STOCK LIST FOR MULTI-STOCK PAGE ---
+MULTI_STOCKS = [
+    ("Brightcom group", "NSE"),
+    ("Gokaldas Exports", "NSE"),
+    ("KPR Mill", "NSE"),
+    ("Tata Steel", "NSE"),
+    ("Nvidia", "NASDAQ"),
+    # ("Apple", "NASDAQ"),
+    # ("Google", "NASDAQ"),
+    # ("Tesla", "NASDAQ"),
+    ("Microsoft", "NASDAQ"),
+    ("Amazon", "NASDAQ"),
+    ("Meta", "NASDAQ"),
+    ("Netflix", "NASDAQ"),
+    ("Alphabet", "NASDAQ")
+]
 
-analyze_btn = st.button("🚀 Analyze", use_container_width=True)
-
-symbol = None
-
-if analyze_btn:
-    # Search for the company name or symbol using the backend
-    try:
-        print("company_input", company_input)
-        resp = requests.get(f"{API_BASE_URL}/search", params={"q": company_input})
-        print("resp", resp.json())
-        if resp.status_code == 200:
-            results = resp.json()
-            print("results", results)
-            # Use the first result if available
-            if results:
-                symbol = results[0]["symbol"]
-            else:
-                symbol = company_input
-                st.warning("No US stock found for your input. Please try a different company or symbol.")
-        else:
-            st.error(f"Search API error: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        st.error(f"Search error: {e}")
+# --- MULTI-STOCK SIGNALS PAGE ---
+def render_multi_stock_signals():
+    st.markdown("<h1 style='text-align:center; color:#2E8B57; font-size:2.1rem;'>📊 Multi-Stock Buy/Sell Signals</h1>", unsafe_allow_html=True)
     
-    print("symbol", symbol)
+    def fetch_analysis(stock, exchange):
+        try:
+            print(f"[DEBUG] Sending request for {stock} ({exchange})")
+            resp = requests.post(f"{API_BASE_URL}/analyze", json={"symbol": stock}, timeout=30)
+            print(f"[DEBUG] Response status for {stock}: {resp.status_code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                print(f"[DEBUG] Data for {stock}: {data}")
+                return (stock, exchange, data)
+            else:
+                print(f"[DEBUG] API error for {stock}: {resp.text}")
+                return (stock, exchange, {"error": f"API Error: {resp.status_code}"})
+        except Exception as e:
+            print(f"[DEBUG] Exception for {stock}: {e}")
+            return (stock, exchange, {"error": str(e)})
 
-    if symbol:
-        print("symbol inside if", symbol)
-        with st.spinner(f"Analyzing {symbol.upper()}..."):
-            print("symbol inside if-2", symbol)
-            response = requests.post(f"{API_BASE_URL}/analyze", json={"symbol": symbol})
-            if response.status_code == 200:
-                data = response.json()
-                if "error" in data:
-                    st.error(data["error"])
-                else:
-                    st.balloons()
-                    st.success(f"Analysis complete for {symbol.upper()}! ✅")
-                    currency = data.get('currency', '$')
-                    # Layout: Metrics and Consensus
-                    col1, col2, col3 = st.columns([2,2,3])
-                    with col1:
-                        st.markdown(f"<div class='metric-label'>Current Price</div>", unsafe_allow_html=True)
-                        st.markdown(
-                            f"<div class='big-metric'>{currency}{data['current_price']:.2f}</div>",
-                            unsafe_allow_html=True
-                        )
-                    with col2:
+    cols = st.columns(2)
+    stock_placeholders = []
+    for idx, (stock, exchange) in enumerate(MULTI_STOCKS):
+        with cols[idx % 2]:
+            ph = st.empty()
+            ph.info(f"Analyzing {stock} ({exchange})...")
+            stock_placeholders.append(ph)
+
+    completed_idxs = set()
+    with ThreadPoolExecutor() as executor:
+        future_to_idx = {
+            executor.submit(fetch_analysis, stock, exchange): idx
+            for idx, (stock, exchange) in enumerate(MULTI_STOCKS)
+        }
+        start_time = time.time()
+        try:
+            for future in as_completed(future_to_idx, timeout=30):
+                idx = future_to_idx[future]
+                completed_idxs.add(idx)
+                try:
+                    stock, exchange, data = future.result(timeout=30)
+                except Exception as e:
+                    data = {"error": f"Timeout or error: {e}"}
+                    stock, exchange = MULTI_STOCKS[idx]
+                with cols[idx % 2]:
+                    ph = stock_placeholders[idx]
+                    ph.empty()
+                    if "error" in data:
+                        ph.error(data["error"])
+                    else:
+                        currency = data.get('currency', '$')
                         consensus = data.get("consensus", {})
                         action = consensus.get('action', 'N/A').upper()
                         action_emoji = "🟢" if action == "BUY" else ("🔴" if action == "SELL" else "🟡")
-                        st.markdown(
-                            f"<div class='consensus-action'>{action_emoji} Consensus: {action}</div>",
-                            unsafe_allow_html=True
-                        )
-                        st.progress(min(consensus.get('confidence', 0), 1.0), text="Confidence")
-                        st.markdown(f"**Agent Agreement:** `{consensus.get('agreement', 0):.2f}`")
-                    with col3:
-                        st.info("💡 How to interpret:")
-                        st.markdown("""
-                        <ul>
-                        <li><span style="color:#2E8B57;font-weight:bold;">Buy</span>: Strong positive signals</li>
-                        <li><span style="color:#d32f2f;font-weight:bold;">Sell</span>: Strong negative signals</li>
-                        <li><span style="color:#ff9800;font-weight:bold;">Hold</span>: Uncertain or mixed signals</li>
-                        </ul>
-                        """, unsafe_allow_html=True)
-                    st.divider()
-                    # Price Chart (if available)
-                    if 'signals' in data and 'technical' in data['signals']:
-                        tech = data['signals']['technical']
-                        if 'reasoning' in tech and 'price history' in tech['reasoning'].lower():
-                            pass  # Placeholder for future chart extraction
-                    # Try to fetch price history for chart
-                    try:
-                        import yfinance as yf
-                        hist = yf.Ticker(symbol).history(period="1mo", interval="1d")
-                        if not hist.empty:
-                            # Calculate moving averages for more impressive chart
-                            hist['MA5'] = hist['Close'].rolling(window=5).mean()
-                            hist['MA10'] = hist['Close'].rolling(window=10).mean()
-                            # Create candlestick chart with moving averages and volume
-                            fig = go.Figure()
-                            # Candlestick
-                            fig.add_trace(go.Candlestick(
-                                x=hist.index,
-                                open=hist['Open'],
-                                high=hist['High'],
-                                low=hist['Low'],
-                                close=hist['Close'],
-                                name='Price',
-                                increasing_line_color='#2E8B57',
-                                decreasing_line_color='#d32f2f',
-                                showlegend=True
-                            ))
-                            # MA5
-                            fig.add_trace(go.Scatter(
-                                x=hist.index, y=hist['MA5'],
-                                mode='lines',
-                                line=dict(color='#0072C6', width=2, dash='dot'),
-                                name='MA 5',
-                                hovertemplate='MA 5: %{y:.2f}<extra></extra>'
-                            ))
-                            # MA10
-                            fig.add_trace(go.Scatter(
-                                x=hist.index, y=hist['MA10'],
-                                mode='lines',
-                                line=dict(color='#ff9800', width=2, dash='dash'),
-                                name='MA 10',
-                                hovertemplate='MA 10: %{y:.2f}<extra></extra>'
-                            ))
-                            # Volume as bar chart (secondary y)
-                            fig.add_trace(go.Bar(
-                                x=hist.index, y=hist['Volume'],
-                                name='Volume',
-                                marker_color='rgba(44, 130, 201, 0.25)',
-                                yaxis='y2',
-                                opacity=0.5,
-                                hovertemplate='Volume: %{y}<extra></extra>'
-                            ))
-                            # Layout
-                            fig.update_layout(
-                                title={
-                                    'text': f"📈 <b>{symbol.upper()} Price Chart (1 Month)</b>",
-                                    'x':0.5,
-                                    'xanchor': 'center',
-                                    'font': dict(size=22, color="#0072C6", family="Montserrat,Segoe UI,Roboto,sans-serif")
-                                },
-                                xaxis=dict(
-                                    title="Date",
-                                    rangeslider=dict(visible=False),
-                                    showgrid=True,
-                                    gridcolor="#e0eafc",
-                                    tickformat="%b %d",
-                                    tickfont=dict(size=12, color="#232526")
-                                ),
-                                yaxis=dict(
-                                    title="Price",
-                                    showgrid=True,
-                                    gridcolor="#e0eafc",
-                                    tickfont=dict(size=12, color="#232526")
-                                ),
-                                yaxis2=dict(
-                                    title="Volume",
-                                    overlaying='y',
-                                    side='right',
-                                    showgrid=False,
-                                    tickfont=dict(size=11, color="#0072C6")
-                                ),
-                                legend=dict(
-                                    orientation="h",
-                                    yanchor="bottom",
-                                    y=1.02,
-                                    xanchor="right",
-                                    x=1,
-                                    font=dict(size=13, family="Montserrat,Segoe UI,Roboto,sans-serif")
-                                ),
-                                plot_bgcolor="#f7fafc",
-                                paper_bgcolor="#f7fafc",
-                                margin=dict(l=10, r=10, t=60, b=10),
-                                hovermode="x unified",
-                                height=480
+                        ph.markdown(f"<h3 style='color:#0072C6;'>{stock} <span style='font-size:1rem;color:#888;'>({exchange})</span></h3>", unsafe_allow_html=True)
+                        ph.markdown(f"<div class='consensus-action'>{action_emoji} Consensus: {action}</div>", unsafe_allow_html=True)
+                        ph.markdown(f"**Agent Agreement:** `{consensus.get('agreement', 0):.2f}`")
+                        ph.markdown("<div style='margin-bottom:8px;'></div>")
+                        signals = data.get("signals", {})
+                        agent_icons = {
+                            "technical": "📊",
+                            "sentiment": "📰",
+                            "risk": "⚠️",
+                            "fundamental": "💼"
+                        }
+                        for agent, sig in signals.items():
+                            icon = agent_icons.get(agent.lower(), "🤖")
+                            expander_label = f"{icon} {agent.title()} Agent"
+                            with ph.expander(expander_label, expanded=False):
+                                ph.markdown("<div class='agent-expander'>", unsafe_allow_html=True)
+                                if 'error' in sig:
+                                    ph.error(sig['error'])
+                                else:
+                                    action = sig['action'].upper()
+                                    if action == "BUY":
+                                        action_class = "buy"
+                                        action_color = "#2E8B57"
+                                    elif action == "SELL":
+                                        action_class = "sell"
+                                        action_color = "#d32f2f"
+                                    else:
+                                        action_class = "hold"
+                                        action_color = "#ff9800"
+                                    action_emoji = "🟢" if action == "BUY" else ("🔴" if action == "SELL" else "🟡")
+                                    ph.markdown(
+                                        f"<div class='agent-action {action_class}' style='color:{action_color};font-family:Montserrat,Segoe UI,Roboto,sans-serif;'>"
+                                        f"{action_emoji} <b>{action}</b>"
+                                        "</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                    conf = min(sig['confidence'], 1.0)
+                                    ph.markdown(
+                                        f'''
+                                        <div class="agent-confidence-bar">
+                                            <div class="agent-confidence-fill" style="width:{conf*100:.1f}%;"></div>
+                                            <span class="agent-confidence-label">{conf*100:.1f}% Confidence</span>
+                                        </div>
+                                        ''',
+                                        unsafe_allow_html=True
+                                    )
+                                    if sig.get('target_price'):
+                                        ph.markdown(
+                                            f"<div class='agent-target-stop'>"
+                                            f"<span style='font-weight:600;'>Target Price:</span> <span style='color:#2E8B57;font-weight:600;'>{currency}{sig['target_price']:.2f} 💰</span>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
+                                    if sig.get('stop_loss'):
+                                        ph.markdown(
+                                            f"<div class='agent-target-stop'>"
+                                            f"<span style='font-weight:600;'>Stop Loss:</span> <span style='color:#d32f2f;font-weight:600;'>{currency}{sig['stop_loss']:.2f} 🚫</span>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
+                                    ph.markdown(
+                                        "<div class='agent-reasoning-title'><span class='reasoning-icon'>💡</span>Reasoning:</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                    reasoning = sig.get('reasoning', 'No reasoning provided')
+                                    ph.markdown(
+                                        f"<div class='agent-reasoning-body'>{reasoning}</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                ph.markdown("</div>", unsafe_allow_html=True)
+        except TimeoutError:
+            pass  # We handle unfinished below
+    # After 30 seconds, show timeout for any not completed
+    for idx, ph in enumerate(stock_placeholders):
+        if idx not in completed_idxs:
+            with cols[idx % 2]:
+                ph.error(f"Timeout: No response in 30 seconds for {MULTI_STOCKS[idx][0]} ({MULTI_STOCKS[idx][1]})")
+
+# --- MAIN PAGE LOGIC ---
+if page == "Stock Analysis Dashboard":
+    st.markdown("<h1 style='text-align:center; color:#0072C6; font-size:2.3rem; font-family:Montserrat,Segoe UI,Roboto,sans-serif;'>🔍 Stock Analysis Dashboard</h1>", unsafe_allow_html=True)
+    company_input = st.text_input(
+        "Company Name or Symbol",
+        value="",
+        max_chars=40,
+        help="Type a US or Indian company name or symbol (e.g., Apple, AAPL, Reliance, RELIANCE.NSE, Tata, TCS.NSE)"
+    )
+
+    analyze_btn = st.button("🚀 Analyze", use_container_width=True)
+
+    symbol = None
+
+    if analyze_btn:
+        # Search for the company name or symbol using the backend
+        try:
+            print("company_input", company_input)
+            resp = requests.get(f"{API_BASE_URL}/search", params={"q": company_input})
+            print("resp", resp.json())
+            if resp.status_code == 200:
+                results = resp.json()
+                print("results", results)
+                # Use the first result if available
+                if results:
+                    symbol = results[0]["symbol"]
+                else:
+                    symbol = company_input
+                    st.warning("No US stock found for your input. Please try a different company or symbol.")
+            else:
+                st.error(f"Search API error: {resp.status_code} - {resp.text}")
+        except Exception as e:
+            st.error(f"Search error: {e}")
+        
+        print("symbol", symbol)
+
+        if symbol:
+            print("symbol inside if", symbol)
+            with st.spinner(f"Analyzing {symbol.upper()}..."):
+                print("symbol inside if-2", symbol)
+                response = requests.post(f"{API_BASE_URL}/analyze", json={"symbol": symbol})
+                if response.status_code == 200:
+                    data = response.json()
+                    if "error" in data:
+                        st.error(data["error"])
+                    else:
+                        st.balloons()
+                        st.success(f"Analysis complete for {symbol.upper()}! ✅")
+                        currency = data.get('currency', '$')
+                        # Layout: Metrics and Consensus
+                        col1, col2, col3 = st.columns([2,2,3])
+                        with col1:
+                            st.markdown(f"<div class='metric-label'>Current Price</div>", unsafe_allow_html=True)
+                            st.markdown(
+                                f"<div class='big-metric'>{currency}{data['current_price']:.2f}</div>",
+                                unsafe_allow_html=True
                             )
-                            # Add annotation for current price
-                            last_close = hist['Close'][-1]
-                            fig.add_hline(
-                                y=last_close,
-                                line_dash="dot",
-                                line_color="#2E8B57",
-                                annotation_text=f"Current: {currency}{last_close:.2f}",
-                                annotation_position="top right",
-                                annotation_font_color="#2E8B57",
-                                annotation_font_size=14
+                        with col2:
+                            consensus = data.get("consensus", {})
+                            action = consensus.get('action', 'N/A').upper()
+                            action_emoji = "🟢" if action == "BUY" else ("🔴" if action == "SELL" else "🟡")
+                            st.markdown(
+                                f"<div class='consensus-action'>{action_emoji} Consensus: {action}</div>",
+                                unsafe_allow_html=True
                             )
-                            st.plotly_chart(fig, use_container_width=True)
-                    except Exception as ex:
-                        st.warning("Could not load advanced chart. Showing basic chart.")
+                            st.progress(min(consensus.get('confidence', 0), 1.0), text="Confidence")
+                            st.markdown(f"**Agent Agreement:** `{consensus.get('agreement', 0):.2f}`")
+                        with col3:
+                            st.info("💡 How to interpret:")
+                            st.markdown("""
+                            <ul>
+                            <li><span style="color:#2E8B57;font-weight:bold;">Buy</span>: Strong positive signals</li>
+                            <li><span style="color:#d32f2f;font-weight:bold;">Sell</span>: Strong negative signals</li>
+                            <li><span style="color:#ff9800;font-weight:bold;">Hold</span>: Uncertain or mixed signals</li>
+                            </ul>
+                            """, unsafe_allow_html=True)
+                        st.divider()
+                        # Price Chart (if available)
+                        if 'signals' in data and 'technical' in data['signals']:
+                            tech = data['signals']['technical']
+                            if 'reasoning' in tech and 'price history' in tech['reasoning'].lower():
+                                pass  # Placeholder for future chart extraction
+                        # Try to fetch price history for chart
                         try:
                             import yfinance as yf
                             hist = yf.Ticker(symbol).history(period="1mo", interval="1d")
                             if not hist.empty:
-                                fig = px.line(
-                                    hist, x=hist.index, y='Close',
-                                    title=f"{symbol.upper()} Price (1 Month)",
-                                    template="plotly_white",
-                                    markers=True
-                                )
-                                fig.update_traces(line=dict(color="#0072C6", width=3))
+                                # Calculate moving averages for more impressive chart
+                                hist['MA5'] = hist['Close'].rolling(window=5).mean()
+                                hist['MA10'] = hist['Close'].rolling(window=10).mean()
+                                # Create candlestick chart with moving averages and volume
+                                fig = go.Figure()
+                                # Candlestick
+                                fig.add_trace(go.Candlestick(
+                                    x=hist.index,
+                                    open=hist['Open'],
+                                    high=hist['High'],
+                                    low=hist['Low'],
+                                    close=hist['Close'],
+                                    name='Price',
+                                    increasing_line_color='#2E8B57',
+                                    decreasing_line_color='#d32f2f',
+                                    showlegend=True
+                                ))
+                                # MA5
+                                fig.add_trace(go.Scatter(
+                                    x=hist.index, y=hist['MA5'],
+                                    mode='lines',
+                                    line=dict(color='#0072C6', width=2, dash='dot'),
+                                    name='MA 5',
+                                    hovertemplate='MA 5: %{y:.2f}<extra></extra>'
+                                ))
+                                # MA10
+                                fig.add_trace(go.Scatter(
+                                    x=hist.index, y=hist['MA10'],
+                                    mode='lines',
+                                    line=dict(color='#ff9800', width=2, dash='dash'),
+                                    name='MA 10',
+                                    hovertemplate='MA 10: %{y:.2f}<extra></extra>'
+                                ))
+                                # Volume as bar chart (secondary y)
+                                fig.add_trace(go.Bar(
+                                    x=hist.index, y=hist['Volume'],
+                                    name='Volume',
+                                    marker_color='rgba(44, 130, 201, 0.25)',
+                                    yaxis='y2',
+                                    opacity=0.5,
+                                    hovertemplate='Volume: %{y}<extra></extra>'
+                                ))
+                                # Layout
                                 fig.update_layout(
-                                    title_font=dict(size=20, color="#0072C6"),
-                                    xaxis_title="Date",
-                                    yaxis_title="Price",
+                                    title={
+                                        'text': f"📈 <b>{symbol.upper()} Price Chart (1 Month)</b>",
+                                        'x':0.5,
+                                        'xanchor': 'center',
+                                        'font': dict(size=22, color="#0072C6", family="Montserrat,Segoe UI,Roboto,sans-serif")
+                                    },
+                                    xaxis=dict(
+                                        title="Date",
+                                        rangeslider=dict(visible=False),
+                                        showgrid=True,
+                                        gridcolor="#e0eafc",
+                                        tickformat="%b %d",
+                                        tickfont=dict(size=12, color="#232526")
+                                    ),
+                                    yaxis=dict(
+                                        title="Price",
+                                        showgrid=True,
+                                        gridcolor="#e0eafc",
+                                        tickfont=dict(size=12, color="#232526")
+                                    ),
+                                    yaxis2=dict(
+                                        title="Volume",
+                                        overlaying='y',
+                                        side='right',
+                                        showgrid=False,
+                                        tickfont=dict(size=11, color="#0072C6")
+                                    ),
+                                    legend=dict(
+                                        orientation="h",
+                                        yanchor="bottom",
+                                        y=1.02,
+                                        xanchor="right",
+                                        x=1,
+                                        font=dict(size=13, family="Montserrat,Segoe UI,Roboto,sans-serif")
+                                    ),
                                     plot_bgcolor="#f7fafc",
-                                    margin=dict(l=10, r=10, t=40, b=10)
+                                    paper_bgcolor="#f7fafc",
+                                    margin=dict(l=10, r=10, t=60, b=10),
+                                    hovermode="x unified",
+                                    height=480
+                                )
+                                # Add annotation for current price
+                                last_close = hist['Close'][-1]
+                                fig.add_hline(
+                                    y=last_close,
+                                    line_dash="dot",
+                                    line_color="#2E8B57",
+                                    annotation_text=f"Current: {currency}{last_close:.2f}",
+                                    annotation_position="top right",
+                                    annotation_font_color="#2E8B57",
+                                    annotation_font_size=14
                                 )
                                 st.plotly_chart(fig, use_container_width=True)
-                        except Exception:
-                            pass
-                    st.subheader("🧠 Agent Signals")
-                    signals = data.get("signals", {})
-                    agent_icons = {
-                        "technical": "📊",
-                        "sentiment": "📰",
-                        "risk": "⚠️",
-                        "fundamental": "💼"
-                    }
-                    for agent, sig in signals.items():
-                        icon = agent_icons.get(agent.lower(), "🤖")
-                        # --- Highlight Sentiment Agent and Technical Agent titles ---
-                        if agent.lower() == "sentiment":
-                            expander_label = f"📰 Sentiment Agent"
-                        elif agent.lower() == "technical":
-                            expander_label = f"📊 Technical Agent"
-                        elif agent.lower() == "risk":
-                            expander_label = f"⚠️ Risk Management Agent"
-                        else:
-                            expander_label = f"{icon} {agent.title()} Agent"
-                        # Streamlit's st.expander does not support HTML in the label, so we use plain text
-                        with st.expander(expander_label, expanded=True):
-                            st.markdown("<div class='agent-expander'>", unsafe_allow_html=True)
-                            if 'error' in sig:
-                                st.error(sig['error'])
+                        except Exception as ex:
+                            st.warning("Could not load advanced chart. Showing basic chart.")
+                            try:
+                                import yfinance as yf
+                                hist = yf.Ticker(symbol).history(period="1mo", interval="1d")
+                                if not hist.empty:
+                                    fig = px.line(
+                                        hist, x=hist.index, y='Close',
+                                        title=f"{symbol.upper()} Price (1 Month)",
+                                        template="plotly_white",
+                                        markers=True
+                                    )
+                                    fig.update_traces(line=dict(color="#0072C6", width=3))
+                                    fig.update_layout(
+                                        title_font=dict(size=20, color="#0072C6"),
+                                        xaxis_title="Date",
+                                        yaxis_title="Price",
+                                        plot_bgcolor="#f7fafc",
+                                        margin=dict(l=10, r=10, t=40, b=10)
+                                    )
+                                    st.plotly_chart(fig, use_container_width=True)
+                            except Exception:
+                                pass
+                        st.subheader("🧠 Agent Signals")
+                        signals = data.get("signals", {})
+                        agent_icons = {
+                            "technical": "📊",
+                            "sentiment": "📰",
+                            "risk": "⚠️",
+                            "fundamental": "💼"
+                        }
+                        for agent, sig in signals.items():
+                            icon = agent_icons.get(agent.lower(), "🤖")
+                            # --- Highlight Sentiment Agent and Technical Agent titles ---
+                            if agent.lower() == "sentiment":
+                                expander_label = f"📰 Sentiment Agent"
+                            elif agent.lower() == "technical":
+                                expander_label = f"📊 Technical Agent"
+                            elif agent.lower() == "risk":
+                                expander_label = f"⚠️ Risk Management Agent"
                             else:
-                                action = sig['action'].upper()
-                                if action == "BUY":
-                                    action_class = "buy"
-                                    action_color = "#2E8B57"
-                                elif action == "SELL":
-                                    action_class = "sell"
-                                    action_color = "#d32f2f"
+                                expander_label = f"{icon} {agent.title()} Agent"
+                            # Streamlit's st.expander does not support HTML in the label, so we use plain text
+                            with st.expander(expander_label, expanded=True):
+                                st.markdown("<div class='agent-expander'>", unsafe_allow_html=True)
+                                if 'error' in sig:
+                                    st.error(sig['error'])
                                 else:
-                                    action_class = "hold"
-                                    action_color = "#ff9800"
-                                action_emoji = "🟢" if action == "BUY" else ("🔴" if action == "SELL" else "🟡")
-                                st.markdown(
-                                    f"<div class='agent-action {action_class}' style='color:{action_color};font-family:Montserrat,Segoe UI,Roboto,sans-serif;'>"
-                                    f"{action_emoji} <b>{action}</b>"
-                                    "</div>",
-                                    unsafe_allow_html=True
-                                )
-                                # Custom confidence bar
-                                conf = min(sig['confidence'], 1.0)
-                                st.markdown(
-                                    f'''
-                                    <div class="agent-confidence-bar">
-                                        <div class="agent-confidence-fill" style="width:{conf*100:.1f}%;"></div>
-                                        <span class="agent-confidence-label">{conf*100:.1f}% Confidence</span>
-                                    </div>
-                                    ''',
-                                    unsafe_allow_html=True
-                                )
-                                if sig.get('target_price'):
+                                    action = sig['action'].upper()
+                                    if action == "BUY":
+                                        action_class = "buy"
+                                        action_color = "#2E8B57"
+                                    elif action == "SELL":
+                                        action_class = "sell"
+                                        action_color = "#d32f2f"
+                                    else:
+                                        action_class = "hold"
+                                        action_color = "#ff9800"
+                                    action_emoji = "🟢" if action == "BUY" else ("🔴" if action == "SELL" else "🟡")
                                     st.markdown(
-                                        f"<div class='agent-target-stop'>"
-                                        f"<span style='font-weight:600;'>Target Price:</span> <span style='color:#2E8B57;font-weight:600;'>{currency}{sig['target_price']:.2f} 💰</span>"
-                                        f"</div>",
+                                        f"<div class='agent-action {action_class}' style='color:{action_color};font-family:Montserrat,Segoe UI,Roboto,sans-serif;'>"
+                                        f"{action_emoji} <b>{action}</b>"
+                                        "</div>",
                                         unsafe_allow_html=True
                                     )
-                                if sig.get('stop_loss'):
+                                    # Custom confidence bar
+                                    conf = min(sig['confidence'], 1.0)
                                     st.markdown(
-                                        f"<div class='agent-target-stop'>"
-                                        f"<span style='font-weight:600;'>Stop Loss:</span> <span style='color:#d32f2f;font-weight:600;'>{currency}{sig['stop_loss']:.2f} 🚫</span>"
-                                        f"</div>",
+                                        f'''
+                                        <div class="agent-confidence-bar">
+                                            <div class="agent-confidence-fill" style="width:{conf*100:.1f}%;"></div>
+                                            <span class="agent-confidence-label">{conf*100:.1f}% Confidence</span>
+                                        </div>
+                                        ''',
                                         unsafe_allow_html=True
                                     )
-                                # --- Attractive Reasoning Section ---
-                                st.markdown(
-                                    "<div class='agent-reasoning-title'><span class='reasoning-icon'>💡</span>Reasoning:</div>",
-                                    unsafe_allow_html=True
-                                )
-                                reasoning = sig.get('reasoning', 'No reasoning provided')
-                                # Optionally, you could add markdown rendering for lists, bold, etc.
-                                st.markdown(
-                                    f"<div class='agent-reasoning-body'>{reasoning}</div>",
-                                    unsafe_allow_html=True
-                                )
-                            st.markdown("</div>", unsafe_allow_html=True)
-            else:
-                st.error(f"API Error: {response.status_code}") 
+                                    if sig.get('target_price'):
+                                        st.markdown(
+                                            f"<div class='agent-target-stop'>"
+                                            f"<span style='font-weight:600;'>Target Price:</span> <span style='color:#2E8B57;font-weight:600;'>{currency}{sig['target_price']:.2f} 💰</span>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
+                                    if sig.get('stop_loss'):
+                                        st.markdown(
+                                            f"<div class='agent-target-stop'>"
+                                            f"<span style='font-weight:600;'>Stop Loss:</span> <span style='color:#d32f2f;font-weight:600;'>{currency}{sig['stop_loss']:.2f} 🚫</span>"
+                                            f"</div>",
+                                            unsafe_allow_html=True
+                                        )
+                                    # --- Attractive Reasoning Section ---
+                                    st.markdown(
+                                        "<div class='agent-reasoning-title'><span class='reasoning-icon'>💡</span>Reasoning:</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                    reasoning = sig.get('reasoning', 'No reasoning provided')
+                                    # Optionally, you could add markdown rendering for lists, bold, etc.
+                                    st.markdown(
+                                        f"<div class='agent-reasoning-body'>{reasoning}</div>",
+                                        unsafe_allow_html=True
+                                    )
+                                st.markdown("</div>", unsafe_allow_html=True)
+                else:
+                    st.error(f"API Error: {response.status_code}")
+elif page == "Multi-Stock Signals":
+    render_multi_stock_signals() 

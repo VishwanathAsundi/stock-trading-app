@@ -28,20 +28,23 @@ class StockAnalyzer:
         market_data = await data_service.get_real_time_price(yf_symbol)
         if data.empty or not market_data:
             return {"error": f"No data available for {symbol}"}
-        # Get signals from all agents
-        signals = {}
+        # Get signals from all agents concurrently
+        agent_tasks = {}
         for agent_name, agent in self.agents.items():
-            try:
-                signal = await agent.analyze(yf_symbol, data, market_data)
+            agent_tasks[agent_name] = agent.analyze(yf_symbol, data, market_data)
+        agent_results = await asyncio.gather(*agent_tasks.values(), return_exceptions=True)
+        signals = {}
+        for (agent_name, _), result in zip(agent_tasks.items(), agent_results):
+            if isinstance(result, Exception):
+                signals[agent_name] = {'error': str(result)}
+            else:
                 signals[agent_name] = {
-                    'action': signal.action,
-                    'confidence': signal.confidence,
-                    'reasoning': signal.reasoning,
-                    'target_price': signal.target_price,
-                    'stop_loss': signal.stop_loss
+                    'action': result.action,
+                    'confidence': result.confidence,
+                    'reasoning': result.reasoning,
+                    'target_price': result.target_price,
+                    'stop_loss': result.stop_loss
                 }
-            except Exception as e:
-                signals[agent_name] = {'error': str(e)}
         # Calculate consensus
         valid_signals = {k: v for k, v in signals.items() if 'error' not in v}
         if valid_signals:
