@@ -442,6 +442,8 @@ if analyze_btn:
                             expander_label = f"📰 Sentiment Agent"
                         elif agent.lower() == "technical":
                             expander_label = f"📊 Technical Agent"
+                        elif agent.lower() == "risk":
+                            expander_label = f"⚠️ Risk Management Agent"
                         else:
                             expander_label = f"{icon} {agent.title()} Agent"
                         # Streamlit's st.expander does not support HTML in the label, so we use plain text

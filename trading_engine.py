@@ -2,6 +2,7 @@ import asyncio
 from typing import Dict
 from agents.technical_agent import TechnicalAgent
 from agents.sentiment_agent import SentimentAgent
+from agents.risk_agent import RiskManagementAgent
 from agents.base_agent import TradingSignal
 from services.data_service import data_service, map_symbol_for_yfinance
 from config import config
@@ -11,6 +12,7 @@ class StockAnalyzer:
         self.agents = {
             'technical': TechnicalAgent(),
             'sentiment': SentimentAgent(),
+            'risk': RiskManagementAgent(),
         }
 
     async def analyze(self, symbol: str, exchange: str = None) -> Dict:
