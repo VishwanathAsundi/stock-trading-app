@@ -8,6 +8,7 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     
     # AI Agent Settings
     AI_UPDATE_INTERVAL = 300  # 5 minutes

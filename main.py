@@ -80,7 +80,7 @@ def main():
     parser.add_argument(
         "--mode", 
         choices=["api", "trading", "frontend", "all", "setup"],
-        default="setup",
+        default="all",
         help="Mode to run the application"
     )
     args = parser.parse_args()
